@@ -1,0 +1,182 @@
+{
+  "title": "PdM-Sentinel: Model health",
+  "uid": "pdm-model-health",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["pdm-sentinel"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Predicted RUL over time (p10 / p50 / p90)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "pdm-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 5 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.10, sum by (le) (rate(pdm_predicted_rul_bucket[15m])))",
+          "legendFormat": "p10",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(pdm_predicted_rul_bucket[15m])))",
+          "legendFormat": "p50",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(pdm_predicted_rul_bucket[15m])))",
+          "legendFormat": "p90",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Anomaly rate (of /detect/anomaly calls)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "pdm-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "custom.thresholdsStyle": { "mode": "line" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(pdm_anomalies_detected_total[10m]) / clamp_min(rate(pdm_requests_total{endpoint=\"/detect/anomaly\",status=\"200\"}[10m]), 1e-9)",
+          "legendFormat": "anomaly rate",
+          "refId": "A"
+        },
+        { "expr": "0.05", "legendFormat": "alert threshold (5%)", "refId": "B" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Alert count by severity",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "pdm-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (severity) (increase(pdm_alerts_total[15m]))",
+          "legendFormat": "{{severity}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Per-feature drift score (PSI), with 0.10 / 0.25 bands",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "pdm-prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "thresholdsStyle": { "mode": "dashed" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.25 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "pdm_drift_score",
+          "legendFormat": "{{feature}} ({{target}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Aggregate drift score",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "pdm-prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 25 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.25 }
+            ]
+          },
+          "custom.thresholdsStyle": { "mode": "line" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "pdm_drift_score_aggregate",
+          "legendFormat": "{{target}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Model age since last retrain",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "pdm-prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 25 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 2592000 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "pdm_model_age_seconds",
+          "legendFormat": "{{version}}",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

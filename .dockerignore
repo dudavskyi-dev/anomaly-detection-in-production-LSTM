@@ -1,0 +1,38 @@
+# Never ship raw/processed datasets, trained artifacts, or local tracking state in the image —
+# artifacts are mounted read-only at runtime instead (see docker/docker-compose.yml).
+data/
+artifacts/
+mlruns/
+reports/
+
+# Local virtual environment and caches — the image builds its own dependencies.
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.pytest_tmp/
+.hypothesis/
+.coverage
+htmlcov/
+
+# VCS / editors / OS cruft
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Decision logs aren't needed inside the running container. README.md is NOT excluded here even
+# though it isn't needed at runtime either — pyproject.toml declares it as `readme = "README.md"`
+# and `pip install .` fails without it (confirmed the hard way: the first version of this file
+# excluded it and the build broke with "checksum of ref ... /README.md: not found").
+docs/

@@ -1,0 +1,89 @@
+# Prometheus alerting rules (P10 deliverable #5). Every threshold below is derived from a real
+# measurement or an existing project setting, cited in each rule's annotation and explained at
+# length in docs/decisions/P10-monitoring.md -- no evaluated-in-a-vacuum defaults.
+#
+# No Alertmanager is deployed alongside this (out of scope for this milestone's deliverables --
+# there's no "route alerts somewhere" requirement) -- firing/pending alerts are visible in
+# Prometheus's own UI (http://localhost:9090/alerts) without one.
+
+groups:
+  - name: pdm-sentinel
+    rules:
+      - alert: PdmHighAnomalyRate
+        # The shipped AE bundle's threshold is the 99th percentile of *healthy* training scores
+        # (artifacts/torch_lstm_ae__FD001__seed42/thresholds.json:
+        # anomaly_score_threshold_method=percentile-99-of-healthy-training-scores) -- by
+        # construction, ~1% of genuinely healthy traffic crosses it on noise alone. 5% is 5x
+        # that background rate: high enough that "just noise" stops being a credible
+        # explanation, low enough to catch a real shift well before every request alarms.
+        expr: >
+          (rate(pdm_anomalies_detected_total[10m])
+            / clamp_min(rate(pdm_requests_total{endpoint="/detect/anomaly",status="200"}[10m]), 1e-9)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Anomaly rate above 5% for 10+ minutes"
+          description: >
+            More than 5x the ~1% background false-positive rate the shipped
+            percentile-99-of-healthy-training-scores threshold implies. See
+            docs/decisions/P06-anomaly.md for the threshold's derivation.
+
+      - alert: PdmSignificantDataDrift
+        # settings.monitoring.psi_significant_threshold (0.25) -- the same PSI band P09 measured
+        # a real ~15x gap across: 0.017 on the genuine FD001 no-drift holdout vs. 0.77-3.41 on
+        # the genuinely drifted FD002/FD003 traffic (docs/decisions/P09-drift.md). Not an
+        # arbitrary literature constant here -- an empirically-validated separator on this
+        # project's own data.
+        expr: pdm_drift_score_aggregate > 0.25
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aggregate drift score ({{ $value }}) above the significant PSI band"
+          description: >
+            pdm.monitoring's drift-check job measured an aggregate PSI above 0.25 for
+            {{ $labels.target }}. See docs/decisions/P09-drift.md for what this project's own
+            false-positive baseline (0.017) vs. genuine drift (0.77-3.41) looks like at this
+            threshold.
+
+      - alert: PdmLatencyBudgetExceeded
+        # docs/decisions/P08-serving.md's real, containerized (not in-process TestClient)
+        # measurements: p50 ~14.5ms, p95 16-20ms, p99 17.5-27.8ms, max ~28ms across every
+        # endpoint this project measured. 50ms is ~1.8x the highest p99 ever actually observed --
+        # tight enough to catch a genuine regression (a slow model, resource contention, a noisy
+        # neighbor), loose enough that normal jitter at this traffic volume won't false-page.
+        expr: >
+          histogram_quantile(0.95, sum by (le, endpoint) (rate(pdm_request_latency_seconds_bucket[5m]))) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency for {{ $labels.endpoint }} above the 50ms budget"
+          description: >
+            Real containerized measurements in docs/decisions/P08-serving.md never exceeded
+            28ms p99 on this hardware; sustained p95 above 50ms is a genuine regression, not
+            normal jitter.
+
+      - alert: PdmModelStale
+        # settings.monitoring.retrain_cooldown_seconds (86400s / 1 day) is the *minimum* gap
+        # between retrain triggers by design (P09) -- it is not a target cadence. 30 days
+        # (2,592,000s) is chosen as "even in the most conservative realistic case (drift stays
+        # under threshold for a while, so no trigger fires), a healthy pipeline's drift-monitor
+        # job is still checking hourly (settings.monitoring.drift_check_interval_seconds) and
+        # something should have moved in a month." Going a full month with zero retraining
+        # activity means either the scheduled drift-monitor job has stopped running entirely (an
+        # operational failure worth paging on regardless of drift) or the model is stale by
+        # neglect -- both worth surfacing rather than assuming "no alert fired" means "fine."
+        expr: pdm_model_age_seconds > 2592000
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Served model ({{ $labels.version }}) is over 30 days old"
+          description: >
+            No retraining candidate has replaced this model in over 30 days -- 30x
+            settings.monitoring.retrain_cooldown_seconds (the minimum gap between triggers, not
+            a target cadence). Check whether the drift-monitor job (docker compose service
+            drift-monitor) is actually still running.

@@ -1,0 +1,163 @@
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.22.0
+    container_name: pdm-sentinel-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    # File-based backend store + artifact root, both under the named volume below — the point
+    # of a named volume (rather than a container-local path) is that `docker compose down` /
+    # a rebuild doesn't lose every logged run, only removing the volume explicitly would.
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri file:/mlflow/runs
+      --default-artifact-root file:/mlflow/artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: pdm-sentinel-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Point at real bundles produced by `pdm train` / `pdm anomaly` — swap these for whichever
+      # run_id you want to serve. /detect/anomaly degrades to a clear 503 if the anomaly bundle
+      # env var is unset or that path doesn't load; /predict/rul is unaffected either way.
+      - PDM__SERVING__BUNDLE_DIR=/artifacts/torch_rul_regressor__FD001__seed42
+      - PDM__SERVING__ANOMALY_BUNDLE_DIR=/artifacts/torch_lstm_ae__FD001__seed42
+    volumes:
+      # Read-only: the API container must never be able to write into (or corrupt) a bundle.
+      - ../artifacts:/artifacts:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # P09 deliverable #4: "runs on a schedule (a compose-managed job or a simple scheduler; no
+  # Airflow needed)". A `while true; sleep N` loop around `pdm drift check` is exactly that —
+  # deliberately not a cron container or a workflow engine, since neither adds anything a shell
+  # loop doesn't already give a single periodic CLI job. Reuses docker/Dockerfile (the same image
+  # `api` builds from) with extra extras (`tracking`, `monitoring`) added via the `EXTRAS` build
+  # arg, rather than maintaining a second near-duplicate Dockerfile.
+  drift-monitor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        EXTRAS: torch,serving,tracking,monitoring
+    container_name: pdm-sentinel-drift-monitor
+    depends_on:
+      - mlflow
+    environment:
+      # Talks to the compose-managed mlflow service (not the host's local ./mlruns) — a
+      # drift-triggered retraining candidate registered here shows up in the same registry the
+      # rest of the stack uses.
+      - PDM__TRACKING__URI=http://mlflow:5000
+      - PDM__SERVING__BUNDLE_DIR=/app/artifacts/torch_rul_regressor__FD001__seed42
+      - PDM__SERVING__ANOMALY_BUNDLE_DIR=/app/artifacts/torch_lstm_ae__FD001__seed42
+      - PDM__DATA__PROCESSED_DIR=/app/data/processed
+      - PDM__MONITORING__DRIFT_CHECK_INTERVAL_SECONDS=3600
+    volumes:
+      # Mounted at /app/artifacts (not /artifacts, unlike the read-only `api` service) because
+      # `pdm train`/`pdm drift check` write relative paths (`artifacts/...`, `reports/...`)
+      # resolved against the image's WORKDIR (/app) — a triggered retrain's candidate bundle,
+      # the cooldown state file, and every drift report/plot need to land on this same mounted
+      # volume to survive a container restart and stay inspectable from the host.
+      - ../artifacts:/app/artifacts:rw
+      - ../data:/app/data:ro
+      - ../reports:/app/reports:rw
+    command: >
+      sh -c "
+      while true; do
+        echo \"[drift-monitor] $(date -u +%FT%TZ) pdm drift check --production-subset FD002\";
+        python -m pdm.cli drift check --production-subset FD002 || true;
+        echo \"[drift-monitor] $(date -u +%FT%TZ) pdm drift check --production-subset FD003\";
+        python -m pdm.cli drift check --production-subset FD003 || true;
+        sleep $${PDM__MONITORING__DRIFT_CHECK_INTERVAL_SECONDS};
+      done"
+    restart: unless-stopped
+
+  # P10: turns the single drift_metrics.prom textfile drift-monitor writes into a real scrape
+  # target, via node-exporter's standard textfile collector -- the same pattern
+  # docs/decisions/P09-drift.md already justified when that file was designed. This is the
+  # "scraping ... the drift job" half of P10 deliverable #2; `api`'s own /metrics is the other.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: pdm-sentinel-node-exporter
+    command:
+      - --collector.textfile.directory=/textfiles
+      # Only the textfile collector matters here -- every other default collector (cpu, disk,
+      # network...) is host-machine noise for this project's dashboards, not worth the
+      # cardinality on the drift-job's own scrape target.
+      - --collector.disable-defaults
+      - --collector.textfile
+    volumes:
+      - ../artifacts/monitoring:/textfiles:ro
+    restart: unless-stopped
+
+  # P10 deliverable #2. Config-as-code (docker/prometheus.yml, docker/prometheus/alerts.yml) --
+  # nothing about this service is set up by hand after `docker compose up`.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: pdm-sentinel-prometheus
+    ports:
+      # Local dev only -- see the module docstring in pdm/serving/metrics.py and the constraint
+      # in docs/P10-grafana-monitoring.md: nothing here is hardened for exposing metrics (or a
+      # query API that can read them) beyond a developer's own machine.
+      - "9090:9090"
+    volumes:
+      - ../docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # 15 days is far more than a local dev/demo stack needs to retain -- chosen only to be
+      # comfortably larger than "however long this demo session runs," not a production SLO.
+      - --storage.tsdb.retention.time=15d
+    depends_on:
+      - api
+      - node-exporter
+    restart: unless-stopped
+
+  # P10 deliverable #3: datasource + both dashboards are provisioned as code
+  # (docker/grafana/provisioning/, docker/grafana/dashboards/) -- nobody has to click anything
+  # after `docker compose up` to see them.
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: pdm-sentinel-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # Local dev only, per the same constraint as Prometheus above -- a fixed admin password
+      # and anonymous viewer access are appropriate for "one command gives you a dashboard on
+      # your own machine," not for anything reachable by anyone else.
+      - GF_SECURITY_ADMIN_PASSWORD=pdm-sentinel-dev
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ../docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  mlflow_data:
+    name: pdm-sentinel-mlflow-data
+  prometheus_data:
+    name: pdm-sentinel-prometheus-data

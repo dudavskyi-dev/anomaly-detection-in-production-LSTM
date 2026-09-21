@@ -1,0 +1,15 @@
+# Grafana dashboard provisioning (P10 deliverable #3): both committed dashboard JSON files under
+# docker/grafana/dashboards/ (mounted at /var/lib/grafana/dashboards) load automatically —
+# nobody imports a dashboard by hand after `docker compose up`.
+apiVersion: 1
+
+providers:
+  - name: pdm-sentinel
+    orgId: 1
+    folder: "PdM-Sentinel"
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

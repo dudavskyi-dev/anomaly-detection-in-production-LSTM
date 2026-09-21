@@ -1,0 +1,12 @@
+# Grafana datasource provisioning (P10 deliverable #3): the Prometheus datasource exists the
+# moment Grafana starts, from this file — nobody clicks "Add data source" by hand.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: pdm-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -1,0 +1,17 @@
+# NOT the shipped image — exists only so docs/decisions/P08-serving.md can report a real,
+# reproducible "before multi-staging" image size to compare docker/Dockerfile's "after" size
+# against. Build with: docker build -f docker/Dockerfile.naive-single-stage -t pdm-naive .
+
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY pdm ./pdm
+
+# See docker/Dockerfile for why: CPU-only torch first avoids ~2GB of unused NVIDIA CUDA wheels.
+RUN pip install --no-cache-dir torch~=2.14.0 --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir ".[torch,serving]"
+
+ENV PDM__SERVING__HOST=0.0.0.0 PDM__SERVING__PORT=8000
+EXPOSE 8000
+CMD ["python", "-m", "pdm.cli", "serve"]
