@@ -17,6 +17,13 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      # PyPI's default torch wheel on Linux bundles CUDA + triton, and importing triton
+      # segfaults on GitHub's runners even though nothing here uses a GPU or torch.compile.
+      # Installing the CPU-only wheel first satisfies pyproject.toml's torch requirement, so
+      # the next step's install leaves it in place instead of pulling the CUDA build.
+      - name: Install PyTorch (CPU-only)
+        run: pip install torch~=2.14.0 --index-url https://download.pytorch.org/whl/cpu
+
       - name: Install dependencies
         run: pip install -e ".[all]"
 
