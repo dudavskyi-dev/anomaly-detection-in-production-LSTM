@@ -58,7 +58,7 @@ below):
 | Isolation Forest (percentile-99) | **0.548 ± 0.004** | 0.771 ± 0.008 | 0.425 ± 0.004 | 0.509 ± 0.010 |
 | Fused, percentile-99 threshold | 0.294 ± 0.038 | 0.267 ± 0.073 | 0.358 ± 0.046 | 0.352 ± 0.098 |
 
-**The number that goes on the CV**: C-MAPSS anomaly-detection **F1 = 0.648 ± 0.007** (fused
+**The headline number**: C-MAPSS anomaly-detection **F1 = 0.648 ± 0.007** (fused
 score, max-F1-on-validation threshold, 5 seeds) — this is the best defensible C-MAPSS number,
 and it clears the classical Isolation Forest baseline (0.315) by a wide margin, but only because
 of *threshold* quality, not detector quality alone (see below). NAB's best number is **F1 = 0.548

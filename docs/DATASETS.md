@@ -23,11 +23,11 @@ measurements. Engines start healthy and develop a fault over time; training engi
 failure. Test sets are truncated before failure, with a separate `RUL_FDxxx.txt` giving the
 true remaining life.
 
-**Why it's here.** It is the "real-time IoT telemetry from industrial equipment" in your CV
-bullet, and it supports RUL regression, failure classification, and anomaly detection from a
-single source.
+**Why it's here.** It is the primary telemetry source for the project — real-time IoT-style
+sensor streams from industrial equipment — and it supports RUL regression, failure
+classification, and anomaly detection from a single source.
 
-**Important gotchas the agent must handle:**
+**Important gotchas:**
 - Several sensors are constant within a subset and carry zero information — drop them, and
   document which and why.
 - FD002 and FD004 have six distinct operating conditions; raw sensor values cluster by
@@ -54,11 +54,11 @@ temperature (K), rotational speed (rpm), torque (Nm), tool wear (min), a binary 
 label, and five specific failure-mode flags (tool wear TWF, heat dissipation HDF, power PWF,
 overstrain OSF, random RNF). Synthetic but modelled on real industrial milling data.
 
-**Why it's here.** Two reasons. It gives you a fast, honest classical-ML baseline
-(scikit-learn on your CV), and it's the cleanest possible illustration of **label leakage**:
-the five failure-mode flags must be dropped before modelling, because the target is defined
-as their OR. An interviewer who knows this dataset will ask. Being the person who spotted it
-is worth a lot.
+**Why it's here.** Two reasons. It gives a fast, honest classical-ML baseline (scikit-learn on
+tabular data), and it's the cleanest possible illustration of **label leakage**: the five
+failure-mode flags must be dropped before modelling, because the target is defined as their OR.
+This is a well-known trap in this specific dataset, and worth calling out explicitly rather
+than silently avoiding.
 
 Also note the class imbalance (~3.4% failures) — this is where PR-AUC over accuracy gets
 demonstrated concretely.
@@ -77,14 +77,15 @@ demonstrated concretely.
 single-valued metrics, with labelled anomalous windows and a scoring mechanism designed for
 streaming detection that rewards early detection.
 
-**Why it's here.** Your anomaly detector needs to be tested on data it wasn't tuned for.
-C-MAPSS is simulated; NAB `realKnownCause` is a real machine that really failed. Your metrics
-will drop. Report the drop — a candidate who shows a synthetic-to-real generalisation gap and
-can explain it reads as far more credible than one whose every number is 0.9+.
+**Why it's here.** The anomaly detectors need to be tested on data they weren't tuned for.
+C-MAPSS is simulated; NAB `realKnownCause` is a real machine that really failed, so it's the
+project's external validation set. Expect metrics to drop and report the drop — a documented
+synthetic-to-real generalisation gap is more credible than every number reading suspiciously
+well.
 
 **Note on NAB scoring.** NAB's own scoring function is window-based and gives partial credit
-for early detection, so it is not comparable to point-wise F1. Report both, and explain the
-difference; that distinction is a strong signal in an interview.
+for early detection, so it is not comparable to point-wise F1. Both are reported, with the
+difference between them explained rather than glossed over.
 
 ---
 
@@ -93,16 +94,16 @@ difference; that distinction is a strong signal in an interview.
 - Everything under `data/`, gitignored. Never commit datasets.
 - `make data` downloads, verifies checksums, and converts to parquet under `data/processed/`.
 - Record dataset version and file hashes in each bundle's `metadata.json`.
-- If a download URL breaks, the agent should fail loudly with the source page URL, not
-  silently substitute synthetic data.
+- If a download URL breaks, ingestion fails loudly with the source page URL, not by silently
+  substituting synthetic data.
 
-## Mapping to CV claims
+## Capability coverage
 
-| CV claim | Backed by |
+| Capability | Backed by |
 |---|---|
-| "real-time IoT telemetry" | C-MAPSS sensor streams + replay simulator |
-| "forecast machine failures" | RUL regression + failure-within-W classification on C-MAPSS |
-| "F1-score in anomaly detection" | LSTM-AE on C-MAPSS, validated on NAB |
-| "Scikit-learn" | Isolation Forest, Random Forest, Ridge baselines on AI4I + C-MAPSS |
-| "data drift detection" | FD001 → FD002/FD003 distribution shift, PSI + KS |
-| "time-series preprocessing" | per-unit labelling, capping, windowing, per-condition normalisation |
+| Real-time IoT-style telemetry | C-MAPSS sensor streams + replay simulator |
+| Forecasting machine failures | RUL regression + failure-within-W classification on C-MAPSS |
+| F1-scored anomaly detection | LSTM-AE on C-MAPSS, validated on NAB |
+| Classical ML baselines | Isolation Forest, Random Forest, Ridge baselines on AI4I + C-MAPSS |
+| Data drift detection | FD001 → FD002/FD003 distribution shift, PSI + KS |
+| Time-series preprocessing | per-unit labelling, capping, windowing, per-condition normalisation |

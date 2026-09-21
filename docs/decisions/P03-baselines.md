@@ -62,7 +62,7 @@ model with only 5 numeric + one-hot `type` features can't capture, while a tree 
   below. Ridge alone cuts RMSE from ~37–38 down to 16.95, a ~55% reduction, before any tree or
   deep model. That's a large amount of real, linearly-extractable signal already present in raw
   windowed sensor values; the remaining ~10% gap RF closes, and whatever P04's LSTM closes beyond
-  that, is a much smaller and harder-won improvement. A CV bullet claiming "LSTM achieves RMSE 16"
+  that, is a much smaller and harder-won improvement. A headline claim like "LSTM achieves RMSE 16"
   would be nearly meaningless without this table — Ridge is already at 16.95.
 - **Failure classification**: dummy's PR-AUC (0.033 test) sits essentially at the test-set
   positive rate itself (see below); logistic regression alone reaches PR-AUC 0.916 — almost all
@@ -73,7 +73,7 @@ model with only 5 numeric + one-hot `type` features can't capture, while a tree 
 - **AI4I**: the gap between logistic regression (0.423) and random forest (0.650) shows this
   dataset's signal is real but genuinely non-linear — a case where "the classical baseline" is
   itself two very different numbers depending on which classical model, which is worth knowing
-  before citing "a classical ML baseline" as a single fact on a CV.
+  before citing "a classical ML baseline" as a single, undifferentiated fact.
 
 ## The dummy_cap trap: a real, measured illustration of why RMSE alone is dishonest here
 

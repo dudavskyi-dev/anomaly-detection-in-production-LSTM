@@ -1,7 +1,8 @@
 # PdM-Sentinel — Technical Specification
 
-This is the source of truth for the project. Every prompt refers back to it. If a prompt
-and this spec disagree, the spec wins; flag the conflict rather than guessing.
+This document is the source of truth for the project's design. Every decision log in
+`docs/decisions/` is written against it; where an implementation detail and this spec
+disagree, the disagreement is called out explicitly rather than silently resolved.
 
 ## 1. Problem statement
 
@@ -94,7 +95,7 @@ pdm-sentinel/
 ├── docs/
 │   ├── SPEC.md
 │   ├── DATASETS.md
-│   ├── decisions/       one file per milestone, written by the agent
+│   ├── decisions/       one file per milestone, recording decisions and measured results
 │   └── RESULTS.md       generated benchmark tables
 ├── tests/
 ├── docker/
@@ -149,7 +150,7 @@ match the model's expected input shape. Never silently coerce.
   PR-AUC is the more honest metric here.
 - Threshold selection: pick the operating point on the validation set, not the test set.
   Record both the max-F1 threshold and a recall-at-fixed-precision threshold, and explain
-  which one you'd ship for a maintenance use case and why.
+  which one is appropriate to ship for a maintenance use case and why.
 
 ### 6.3 Anomaly detection
 
@@ -177,7 +178,7 @@ Both implementations must be genuinely comparable:
   Bonferroni correction across features. Document why two methods rather than one.
 - Drift is simulated honestly: train on C-MAPSS FD001 (one operating condition, one fault
   mode) and feed FD002/FD003 windows as "production" traffic. These genuinely have different
-  distributions, so the drift signal is real, not synthetic noise you injected.
+  distributions, so the drift signal is real, not injected synthetic noise.
 - On drift above threshold: emit a Prometheus metric, write a drift report, and trigger a
   retraining run that registers a new model version in MLflow **as a candidate, not as
   production**. Promotion requires the new model to beat the incumbent on a held-out set.
@@ -189,7 +190,7 @@ Both implementations must be genuinely comparable:
 - `POST /predict/rul` — body: sensor window; returns predicted RUL, failure probability,
   alert boolean, model version, latency.
 - `POST /detect/anomaly` — returns anomaly score, threshold, boolean, per-sensor
-  reconstruction error contributions (this gives you an explainability answer).
+  reconstruction error contributions (the explainability answer for a flagged window).
 - `GET /metrics` — Prometheus format: request count, latency histogram, prediction
   distribution, anomaly rate, current drift score, loaded model version.
 - Structured JSON logging with request ids.
@@ -205,7 +206,7 @@ Both implementations must be genuinely comparable:
 - `make` targets: `install`, `data`, `train`, `train-tf`, `benchmark`, `eval`, `serve`,
   `drift`, `test`, `test-fast`, `docker-up`, `lint`.
 
-## 10. Documentation the agent must produce
+## 10. Documentation requirements
 
 - `README.md` — what it is, architecture diagram, quickstart, results table with **real
   numbers only**, honest limitations section.
@@ -213,5 +214,6 @@ Both implementations must be genuinely comparable:
 - `docs/decisions/PXX-<name>.md` — per milestone: decisions made, alternatives rejected and
   why, problems hit, how they were fixed, measured numbers, open questions.
 
-The decision logs are a hard requirement, not a nice-to-have. They are the deliverable the
-human will study.
+The decision logs are a hard requirement, not a nice-to-have — they are the primary record of
+what was actually built, measured, and rejected, and the first place to look to understand why
+the system looks the way it does.

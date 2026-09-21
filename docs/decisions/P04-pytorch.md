@@ -130,7 +130,7 @@ taking seriously rather than reporting as a win. Candidate explanations, most to
    reported here too.
 
 None of this changes what's reported (the measured 15.431 ± 0.493 is correct and stays on the
-CV/results table) — it changes what the honest headline claim is: "the LSTM matches the strongest
+results table) — it changes what the honest headline claim is: "the LSTM matches the strongest
 classical baseline and beats linear regression" is what's supported by these numbers; "the LSTM
 beats every baseline" is not.
 
@@ -203,8 +203,8 @@ for one working session. 2 seeds is still "not a single result" (satisfies the l
 result may be reported from a single seed") and gives a real, if noisier, mean ± std for
 *comparison* between sweep points. The number that is actually reported as **the** result — the
 final configuration's test RMSE — uses the full default budget and all 5 configured seeds,
-matching every other milestone's standard, and is the only number that belongs on a CV or in an
-interview answer. The full experiment run (window sweep + architecture ablation + RUL cap
+matching every other milestone's standard, and is the only number that belongs in the headline
+results table. The full experiment run (window sweep + architecture ablation + RUL cap
 ablation, reduced budget) took **4,246.6 seconds (~70.8 minutes)** wall-clock in one background
 run; the final 5-seed stability run alone took **1,022.0 seconds (~17.0 minutes)**.
 

@@ -33,21 +33,5 @@ Thumbs.db
 # Docker
 docker/grafana/data/
 
-# Internal planning / prompt pack (not part of the published project)
-docs/00-START-HERE.md
-docs/01-PROJECT-SPEC.md
-docs/02-DATASETS.md
-docs/03-ACCEPTANCE-CHECKLIST.md
-docs/04-INTERVIEW-PREP-WORKSHEET.md
-docs/P00-bootstrap.md
-docs/P01-data-ingestion.md
-docs/P02-preprocessing.md
-docs/P03-baselines-metrics.md
-docs/P04-pytorch-lstm.md
-docs/P05-tensorflow-benchmark.md
-docs/P06-anomaly-detection.md
-docs/P07-mlflow.md
-docs/P08-serving-docker.md
-docs/P09-drift-retraining.md
-docs/P10-grafana-monitoring.md
-docs/P11-cicd-docs.md
+# Local-only working notes, not part of the published project
+_local_notes/
