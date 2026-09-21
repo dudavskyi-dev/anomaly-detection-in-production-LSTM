@@ -623,10 +623,13 @@ def load_test(
     duration_seconds: float = typer.Option(
         120.0, help="How long to generate traffic for, in seconds."
     ),
-    rate_hz: float = typer.Option(5.0, help="Request pairs (/predict/rul + /detect/anomaly) per second."),
+    rate_hz: float = typer.Option(
+        5.0, help="Request pairs (/predict/rul + /detect/anomaly) per second."
+    ),
     bundle_dir: str = typer.Option(
-        None, help="Bundle whose feature_spec the traffic is windowed against (default: "
-        "settings.serving.bundle_dir)."
+        None,
+        help="Bundle whose feature_spec the traffic is windowed against (default: "
+        "settings.serving.bundle_dir).",
     ),
     drifted_fraction: float = typer.Option(
         0.15,
@@ -651,16 +654,18 @@ def load_test(
     feature_spec = FeatureSpec.load(Path(bundle_dir) / "feature_spec.json")
     processed_dir = Path(settings.data.processed_dir)
 
-    kwargs = {
-        "feature_names": feature_spec.feature_names,
-        "window_size": feature_spec.window_size,
-        "stride": feature_spec.stride,
-        "split": "test",
-    }
-    normal = load_raw_cmapss_windows("FD001", processed_dir, **kwargs)
-    drifted = [
-        load_raw_cmapss_windows(subset, processed_dir, **kwargs) for subset in ("FD002", "FD003")
-    ]
+    def _load(subset: str):
+        return load_raw_cmapss_windows(
+            subset,
+            processed_dir,
+            feature_names=feature_spec.feature_names,
+            window_size=feature_spec.window_size,
+            stride=feature_spec.stride,
+            split="test",
+        )
+
+    normal = _load("FD001")
+    drifted = [_load(subset) for subset in ("FD002", "FD003")]
     typer.echo(
         f"Loaded {len(normal.windows)} FD001 (normal) + "
         f"{sum(len(d.windows) for d in drifted)} FD002/FD003 (drifted) windows."
@@ -685,7 +690,9 @@ def load_test(
         if interval:
             time.sleep(interval)
 
-    typer.echo(f"Sent {sent} request pairs ({errors} errors) to {base_url} over ~{duration_seconds:.0f}s")
+    typer.echo(
+        f"Sent {sent} request pairs ({errors} errors) to {base_url} over ~{duration_seconds:.0f}s"
+    )
 
 
 @drift_app.command("check")
